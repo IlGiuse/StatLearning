@@ -1,0 +1,109 @@
+---
+title: "Progetto StatLearning"
+author: "Giuseppe Specioso"
+date: "2025-02-08"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(dplyr)
+library(GGally)
+library(corrplot)
+library(dplyr)
+```
+
+## R Markdown
+```{r}
+# Define column names based on dataset documentation
+# Define column names consecutively
+column_names <- c("checking_account", "duration_months", "credit_history", "purpose", "credit_amount", 
+                  "savings_account", "employment_since", "installment_rate", "personal_status", 
+                  "other_debtors", "residence_since", "property", "age", "installment_plans", 
+                  "housing", "num_existing_credits", "job", "num_people_liable", "telephone", 
+                  "foreign_worker", "loan_approval")
+
+# Read the dataset (ensure the filename is correct)
+df <- read.table("german.data", header = FALSE, sep = "")
+# Assign the column names to the data frame
+colnames(df) <- column_names
+
+# Display the first few rows
+head(df)
+
+# Convert character variables to factors
+df <- df %>%
+  mutate(
+    checking_account = as.factor(checking_account),
+    credit_history = as.factor(credit_history),
+    purpose = as.factor(purpose),
+    savings_account = as.factor(savings_account),
+    employment_since = as.factor(employment_since),
+    personal_status = as.factor(personal_status),
+    other_debtors = as.factor(other_debtors),
+    property = as.factor(property),
+    installment_plans = as.factor(installment_plans),
+    housing = as.factor(housing),
+    job = as.factor(job),
+    telephone = as.factor(telephone),
+    foreign_worker = as.factor(foreign_worker),
+    loan_approval = as.factor(loan_approval)
+  )
+# Recode loan_approval: Convert 2 -> 0 and 1 -> 1
+df$loan_approval <- ifelse(df$loan_approval == 2, 0, 1)
+
+# Convert to factor if needed
+df$loan_approval <- as.factor(df$loan_approval)
+
+# Check the levels to confirm
+table(df$loan_approval)
+
+str(df)
+```
+```{r}
+# Select only numeric variables from your dataset
+data_numeric <- df %>% select(where(is.numeric))
+
+# Pairwise scatterplots and correlation visualization
+ggpairs(data_numeric)
+
+# Compute correlation matrix
+cor_matrix <- cor(data_numeric, use = "complete.obs")
+
+# Visualize correlation matrix
+corrplot(cor_matrix, method = "circle")
+```
+
+```{r}
+# Identify integer variables
+integer_vars <- names(df)[sapply(df, is.integer)]
+
+# Set plotting layout to display multiple boxplots
+par(mfrow = c(2,2))  # Adjust grid layout based on the number of variables
+
+# Loop through each integer variable and create a boxplot
+for (var in integer_vars) {
+  if (var != "loan_approval") {  # Exclude response variable itself
+    boxplot(df[[var]] ~ df$loan_approval, 
+            main = paste("Loan Approval vs", var),
+            xlab = "Loan Approval", ylab = var, col = "lightblue")
+  }
+}
+
+# Reset plotting parameters
+par(mfrow = c(1,1))
+```
+
+```{r}
+# Bar plot for the frequency of loan approvals (0 and 1)
+ggplot(df, aes(x = factor(loan_approval))) + 
+  geom_bar(fill = c("#FF6347", "#4682B4"), color = "black") +  # Two different colors for the two categories
+  geom_text(stat = "count", aes(label = ..count..), vjust = -0.5) +  # Adding counts on top of bars
+  labs(title = "Loan Approval Distribution", 
+       x = "Loan Approval Status", 
+       y = "Number of Loans", 
+       caption = "Data Source: [German Credit Data]") +  # Customize the title and caption
+  theme_minimal() + 
+  theme(axis.text.x = element_text(size = 12, angle = 0, hjust = 0.5))  # Improved axis labels
+```
+
