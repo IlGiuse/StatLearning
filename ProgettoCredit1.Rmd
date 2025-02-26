@@ -7,6 +7,8 @@ output: pdf_document
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+library(knitr)
+library(kableExtra)
 library(dplyr)
 library(GGally)
 library(corrplot)
@@ -28,9 +30,6 @@ df <- read.table("german.data", header = FALSE, sep = "")
 # Assign the column names to the data frame
 colnames(df) <- column_names
 
-# Display the first few rows
-head(df)
-
 # Convert character variables to factors
 df <- df %>%
   mutate(
@@ -47,52 +46,113 @@ df <- df %>%
     job = as.factor(job),
     telephone = as.factor(telephone),
     foreign_worker = as.factor(foreign_worker),
+    num_people_liable = as.factor(num_people_liable),
     loan_approval = as.factor(loan_approval)
   )
+```
+
+```{r Variables modification}
 # Recode loan_approval: Convert 2 -> 0 and 1 -> 1
 df$loan_approval <- ifelse(df$loan_approval == 2, 0, 1)
-
-# Convert to factor if needed
 df$loan_approval <- as.factor(df$loan_approval)
 
-# Check the levels to confirm
-table(df$loan_approval)
+# Comprise credit_history levels
+df$credit_history <- factor(df$credit_history, 
+                            levels = c("A30", "A31", "A32", "A33", "A34"),
+                            labels = c("Reliable", "Reliable", "Reliable", "Risky", "Risky"))
+
+# Convert 'personal_status' into 'gender' and 'marital_status'
+df$gender <- recode(df$personal_status,
+                    "A91" = "Male", 
+                    "A92" = "Female", 
+                    "A93" = "Male", 
+                    "A94" = "Male", 
+                    "A95" = "Female")
+
+df$marital_status <- recode(df$personal_status,
+                            "A91" = "Married", 
+                            "A92" = "Married", 
+                            "A93" = "Single", 
+                            "A94" = "Married", 
+                            "A95" = "Single")
+
+# Convert the 'foreign_worker' variable into two categories: "Foreign" and "Not Foreign"
+
+df$foreign_worker <- factor(df$foreign_worker, levels = c("A201", "A202"), labels = c("Foreign", "German"))
+
+# Convert 'other_debtors' into simpler categories
+df$other_debtors <- factor(df$other_debtors, levels = c("A101", "A102", "A103"), labels = c("None", "Co-applicant", "Guarantor"))
+
+# Convert 'other_installment_plans' into simpler categories
+df$other_installment_plans <- factor(df$installment_plans, levels = c("A141", "A142", "A143"), labels = c("Bank", "Stores", "None"))
+
+# Convert 'housing' into simpler categories
+df$housing <- factor(df$housing, levels = c("A151", "A152", "A153"), labels = c("Rent", "Own", "Free"))
+
+df <- subset(df, select = -c(personal_status, num_people_liable, telephone, installment_plans, num_existing_credits))
+
+# Conversion for 'checking_account'
+df$checking_account <- factor(df$checking_account, 
+                               levels = c("A11", "A12", "A13", "A14"), 
+                               labels = c("<0", "0-200", ">200", "No checking account"))
+
+# Conversion for 'purpose'
+df$purpose <- factor(df$purpose, 
+                     levels = c("A40", "A41", "A42", "A43", "A44", "A45", "A46", "A47", "A48", "A49", "A410"), 
+                     labels = c("Car (new)", "Car (used)", "Furniture/equipment", "Radio/television", "Domestic appliances", 
+                                "Repairs", "Education", "Vacation", "Retraining", "Business", "Others"))
+
+# Conversion for 'savings_account'
+df$savings_account <- factor(df$savings_account, 
+                              levels = c("A61", "A62", "A63", "A64", "A65"), 
+                              labels = c("<100", "100-500", "500-1000", ">1000", "Unknown/No savings"))
+
+# Conversion for 'employment_since'
+df$employment_since <- factor(df$employment_since, 
+                               levels = c("A71", "A72", "A73", "A74", "A75"), 
+                               labels = c("Unemployed", "<1 year", "1-4 years", "4-7 years", ">7 years"))
+
+# Conversion for 'property'
+df$property <- factor(df$property, 
+                       levels = c("A121", "A122", "A123", "A124"), 
+                       labels = c("Real estate", "Life insurance", 
+                                  "Car/Other", "Unknown/No property"))
+
+# Conversion for 'job'
+df$job <- factor(df$job, 
+                 levels = c("A171", "A172", "A173", "A174"), 
+                 labels = c("Unemployed", "Unskilled employee", 
+                            "Skilled employee", "Management/self-employed/highly qualified"))
+
 
 str(df)
+
 ```
-```{r}
-# Select only numeric variables from your dataset
-data_numeric <- df %>% select(where(is.numeric))
 
-# Pairwise scatterplots and correlation visualization
-ggpairs(data_numeric)
 
-# Compute correlation matrix
-cor_matrix <- cor(data_numeric, use = "complete.obs")
-
-# Visualize correlation matrix
-corrplot(cor_matrix, method = "circle")
-```
 
 ```{r}
-# Identify integer variables
-integer_vars <- names(df)[sapply(df, is.integer)]
+data_numeric <- df[sapply(df, is.numeric)]
+correlation_matrixtot <- cor(data_numeric)
+corrplot((correlation_matrixtot), type = "full", tl.cex = 0.4, addCoef.col = "black",
+number.cex = 0.5, tl.col = "black" )
 
-# Set plotting layout to display multiple boxplots
-par(mfrow = c(2,2))  # Adjust grid layout based on the number of variables
+# Plot 1: duration_months vs credit_amount
+ggplot(df, aes(x = duration_months, y = credit_amount)) +
+  geom_point(color = "blue") +  # Scatter plot
+  geom_smooth(method = "lm", se = FALSE, color = "red") +  # Adding a linear regression line
+  labs(title = "Duration vs Credit Amount", x = "Duration (Months)", y = "Credit Amount") +
+  theme_minimal()
 
-# Loop through each integer variable and create a boxplot
-for (var in integer_vars) {
-  if (var != "loan_approval") {  # Exclude response variable itself
-    boxplot(df[[var]] ~ df$loan_approval, 
-            main = paste("Loan Approval vs", var),
-            xlab = "Loan Approval", ylab = var, col = "lightblue")
-  }
-}
-
-# Reset plotting parameters
-par(mfrow = c(1,1))
+# Plot 2: installment_rate vs credit_amount
+ggplot(df, aes(x = installment_rate, y = credit_amount)) +
+  geom_point(color = "green") +  # Scatter plot
+  geom_smooth(method = "lm", se = FALSE, color = "red") +  # Adding a linear regression line
+  labs(title = "Installment Rate vs Credit Amount", x = "Installment Rate (%)", y = "Credit Amount") +
+  theme_minimal()
 ```
+
+
 
 ```{r}
 # Bar plot for the frequency of loan approvals (0 and 1)
@@ -106,4 +166,163 @@ ggplot(df, aes(x = factor(loan_approval))) +
   theme_minimal() + 
   theme(axis.text.x = element_text(size = 12, angle = 0, hjust = 0.5))  # Improved axis labels
 ```
+
+```{r}
+# Plot 1: loan_approval vs duration_months
+plot1 <- ggplot(df, aes(x = loan_approval, y = duration_months, fill = loan_approval)) +
+  geom_boxplot() +
+  labs(title = "Loan Approval vs Duration (Months)", x = "Loan Approval", y = "Duration (Months)") +
+  theme_minimal()
+
+# Plot 2: loan_approval vs credit_amount
+plot2 <- ggplot(df, aes(x = loan_approval, y = credit_amount, fill = loan_approval)) +
+  geom_boxplot() +
+  labs(title = "Loan Approval vs Credit Amount", x = "Loan Approval", y = "Credit Amount") +
+  theme_minimal()
+
+# Plot 3: loan_approval vs installment_rate
+plot3 <- ggplot(df, aes(x = loan_approval, y = installment_rate, fill = loan_approval)) +
+  geom_boxplot() +
+  labs(title = "Loan Approval vs Installment Rate", x = "Loan Approval", y = "Installment Rate") +
+  theme_minimal()
+
+# Plot 4: loan_approval vs age
+plot4 <- ggplot(df, aes(x = loan_approval, y = age, fill = loan_approval)) +
+  geom_boxplot() +
+  labs(title = "Loan Approval vs Age", x = "Loan Approval", y = "Age") +
+  theme_minimal()
+
+grid.arrange(plot1, plot2, plot3, plot4, nrow = 2, ncol = 2)
+```
+
+```{r PCA}
+# Step 1: Select only the numeric columns (excluding the target variable 'loan_approval')
+numeric_columns <- df[, sapply(df, is.numeric)]
+
+# Step 2: Standardize the numeric columns
+numeric_columns_standardized <- scale(numeric_columns)
+
+# Step 3: Apply PCA to the standardized numeric data
+pc_credit_risk <- princomp(numeric_columns_standardized)
+
+# Step 4: Print the PCA object to get details
+pc_credit_risk
+
+# Step 5: Summary of PCA to see variance explained by each component
+summary(pc_credit_risk)
+```
+
+```{r}
+# Step 1: Set up the plot area to display 2 plots side by side
+par(mfrow = c(1, 2))
+
+# Step 2: Plot variances of the Principal Components
+barplot(pc_credit_risk$sdev^2, 
+        las=2, 
+        main='Principal Components Variance', 
+        ylim=c(0,2), 
+        ylab='Variances')
+
+# Step 3: Plot cumulative contribution to total variance
+plot(cumsum(pc_credit_risk$sdev^2) / sum(pc_credit_risk$sdev^2), 
+     type='b', 
+     axes=F, 
+     xlab='Number of Components', 
+     ylab='Contribution to Total Variance', 
+     ylim=c(0,1))
+
+# Add a horizontal red line at 0.8
+abline(h=0.8, col='red')
+
+# Add axes
+box()
+axis(2, at=0:10/10, labels=0:10/10)
+axis(1, at=1:length(pc_credit_risk$sdev), labels=1:length(pc_credit_risk$sdev), las=2)
+
+# Reset plot layout to default (single plot)
+par(mfrow = c(1, 1))
+
+# Select the numeric variables
+quant_vars <- c("duration_months", "credit_amount", "installment_rate", "residence_since", "age")
+data_quant <- df[, quant_vars]
+
+# Standardize the data
+data_quant_scaled <- scale(data_quant)
+
+# Perform PCA
+pca_result <- prcomp(data_quant_scaled, center = TRUE, scale. = TRUE)
+
+# Extract scores
+scores <- pca_result$x
+print(scores)
+
+# Loadings (Principal Component Contributions)
+loadings <- pca_result$rotation
+print(loadings)
+
+# Filter out insignificant loadings for better interpretability
+par(mar = c(1,4,0,2), mfrow = c(3,1))
+for(i in 1:3){
+  barplot(ifelse(abs(loadings[,i]) < 0.3, 0, loadings[,i]), ylim = c(-1, 1), col=rainbow(length(quant_vars)))
+  abline(h=0)
+} 
+
+# Biplot of the PCA
+layout(1)
+# Basic biplot
+biplot(pca_result)
+```
+
+```{r Clustering}
+# 1. Apply One-Hot Encoding to the categorical variables
+df_encoded <- df
+
+# One-Hot Encoding for 'other_debtors', 'credit_history', 'savings_account' and 'employment_since'
+df_encoded <- cbind(df_encoded, model.matrix(~other_debtors - 1, data = df_encoded))
+df_encoded <- cbind(df_encoded, model.matrix(~credit_history - 1, data = df_encoded))
+df_encoded <- cbind(df_encoded, model.matrix(~savings_account - 1, data = df_encoded))
+df_encoded <- cbind(df_encoded, model.matrix(~employment_since - 1, data = df_encoded))
+
+# Remove the original categorical variables
+df_encoded <- df_encoded[, !(names(df_encoded) %in% c("other_debtors", "credit_history", "savings_account", "employment_since"))]
+
+# 2. Select the last 5 quantitative variables (after encoding)
+data_for_clustering <- df_encoded[, c("installment_rate", "age", "num_existing_credits", "savings_accountA61", "employment_sinceA72")]
+
+# 3. Standardize the data
+data_scaled <- scale(data_for_clustering)
+data_scaled <- scale(df_encoded[sapply(df_encoded, is.numeric)])
+
+# Now, calculate the total within-cluster sum of squares (WSS)
+wss <- numeric(10)  # Initialize the vector to store WSS values
+wss[1] <- (nrow(data_scaled)-1) * sum(apply(data_scaled, 2, var))  # Total variance for one cluster
+
+for (i in 2:10) {
+  wss[i] <- sum(kmeans(data_scaled, centers = i, nstart = 10)$tot.withinss)
+}
+
+# Plot the WSS to identify the optimal number of clusters
+plot(1:10, wss, type="b", xlab="Number of Clusters", ylab="Within-cluster Sum of Squares", main="Elbow Method")
+
+
+# 5. Plot the WSS to identify the optimal number of clusters
+plot(1:10, wss, type="b", xlab="Number of Clusters", ylab="Within-cluster Sum of Squares", main="Elbow Method")
+
+# 6. Perform K-means clustering with the optimal number of clusters (assuming 3 clusters from the elbow method)
+optimal_clusters <- 3  # Based on the elbow method
+kmeans_result <- kmeans(data_scaled, centers = optimal_clusters, nstart = 25)
+
+# 7. Add cluster labels to the original dataset
+df$cluster <- kmeans_result$cluster
+
+# Show the cluster centroids
+kmeans_result$centers
+```
+
+
+
+
+
+
+
 
